@@ -46,15 +46,15 @@ export const ContactSection: React.FC = () => {
 
     try {
       const response = await fetch(
-        'http://localhost:5000/api/contact',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(formData),
-        }
-      );
+  `${import.meta.env.VITE_API_URL}/api/contact`,
+  {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(formData),
+  }
+);
 
       const data = await response.json();
 
