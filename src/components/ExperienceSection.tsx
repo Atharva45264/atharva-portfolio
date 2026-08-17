@@ -30,7 +30,7 @@ const journey: RouteStop[] = [
     year: '2022 - 2026',
     title: 'B.E. IN INFORMATION TECHNOLOGY',
     organization: 'ATHARVA COLLEGE OF ENGINEERING',
-    description: 'Pursuing a Bachelor of Engineering in Information Technology with a CGPA of 8.35, building a strong foundation in software development, data structures, and modern web technologies.',
+    description: 'Bachelor of Engineering Graduate in Information Technology with a CGPA of 8.35, building a strong foundation in software development, data structures, and modern web technologies.',
   },
 ];
 
