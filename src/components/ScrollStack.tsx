@@ -42,8 +42,6 @@ export interface ScrollStackProps {
   /* Minimum scale of the first card */
   baseScale?: number;
 
-  scaleDuration?: number;
-
   /* Small rotation for depth */
   rotationAmount?: number;
 
@@ -67,8 +65,6 @@ const ScrollStack: React.FC<ScrollStackProps> = ({
   scaleEndPosition = '8%',
 
   baseScale = 0.94,
-
-  scaleDuration = 0,
 
   rotationAmount = 1,
 
