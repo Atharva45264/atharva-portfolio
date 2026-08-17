@@ -1,13 +1,19 @@
 const express = require("express");
 const cors = require("cors");
-const nodemailer = require("nodemailer");
 const dotenv = require("dotenv");
+const { Resend } = require("resend");
 
 dotenv.config();
 
 const app = express();
 
 const PORT = process.env.PORT || 5000;
+
+/* =========================================
+   RESEND
+========================================= */
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /* =========================================
    MIDDLEWARE
@@ -59,25 +65,15 @@ app.post("/api/contact", async (req, res) => {
     }
 
     /* -------------------------------------
-       EMAIL TRANSPORTER
-    ------------------------------------- */
-
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_APP_PASSWORD,
-      },
-    });
-
-    /* -------------------------------------
        EMAIL CONTENT
     ------------------------------------- */
 
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
+    const { data, error } = await resend.emails.send({
+      from:
+        process.env.RESEND_FROM ||
+        "Atharva Portfolio <onboarding@resend.dev>",
 
-      to: process.env.EMAIL_TO,
+      to: [process.env.EMAIL_TO],
 
       replyTo: email,
 
@@ -94,16 +90,27 @@ ${email}
 
 Message:
 ${message}
+
+Sent from Atharva Phanse's portfolio website.
       `,
 
       html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #1C231D;">
+        <div
+          style="
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #1C231D;
+            max-width: 650px;
+            margin: 0 auto;
+            padding: 20px;
+          "
+        >
 
           <h2 style="color: #2F6C4F;">
             New Portfolio Message
           </h2>
 
-          <hr />
+          <hr style="border: none; border-top: 1px solid #ddd;" />
 
           <p>
             <strong>Name:</strong><br />
@@ -120,21 +127,34 @@ ${message}
             ${message.replace(/\n/g, "<br />")}
           </p>
 
-          <hr />
+          <hr style="border: none; border-top: 1px solid #ddd;" />
 
-          <p style="color: #777;">
+          <p style="color: #777; font-size: 13px;">
             Sent from Atharva Phanse's portfolio website.
           </p>
 
         </div>
       `,
-    };
+    });
 
     /* -------------------------------------
-       SEND EMAIL
+       RESEND ERROR
     ------------------------------------- */
 
-    await transporter.sendMail(mailOptions);
+    if (error) {
+      console.error("Resend error:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Unable to send message right now.",
+      });
+    }
+
+    /* -------------------------------------
+       SUCCESS
+    ------------------------------------- */
+
+    console.log("Email sent successfully:", data);
 
     return res.status(200).json({
       success: true,
