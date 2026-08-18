@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
-
+from app.services.pdf import extract_text_from_pdf
 
 router = APIRouter(prefix="/api/resume", tags=["Resume"])
 
@@ -14,27 +14,18 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 async def upload_resume(file: UploadFile = File(...)):
     # Check that a file was provided
     if not file.filename:
-        raise HTTPException(
-            status_code=400,
-            detail="No file provided."
-        )
+        raise HTTPException(status_code=400, detail="No file provided.")
 
     # Check file extension
     if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(
-            status_code=400,
-            detail="Only PDF files are allowed."
-        )
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
 
     # Read file
     file_content = await file.read()
 
     # Basic empty-file check
     if not file_content:
-        raise HTTPException(
-            status_code=400,
-            detail="Uploaded file is empty."
-        )
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
     # Save the PDF
     file_path = UPLOAD_DIR / "resume.pdf"
@@ -48,3 +39,34 @@ async def upload_resume(file: UploadFile = File(...)):
         "filename": file.filename,
         "size": len(file_content),
     }
+
+
+@router.get("/extract")
+async def extract_resume_text():
+    file_path = UPLOAD_DIR / "resume.pdf"
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Resume has not been uploaded yet.")
+
+    try:
+        text = extract_text_from_pdf(file_path)
+
+        if not text:
+            raise HTTPException(
+                status_code=400, detail="Could not extract any text from the resume."
+            )
+
+        return {
+            "success": True,
+            "message": "Resume text extracted successfully.",
+            "characters": len(text),
+            "text": text,
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to extract resume text: {str(e)}"
+        )
