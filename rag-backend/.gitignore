@@ -17,3 +17,4 @@ __pycache__/
 # Local databases / generated files
 *.db
 *.sqlite3
+uploads/
