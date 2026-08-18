@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from app.services.pdf import extract_text_from_pdf
+from app.services.chunking import chunk_text
 
 router = APIRouter(prefix="/api/resume", tags=["Resume"])
 
@@ -70,3 +71,38 @@ async def extract_resume_text():
         raise HTTPException(
             status_code=500, detail=f"Failed to extract resume text: {str(e)}"
         )
+
+
+@router.get("/chunks")
+async def get_resume_chunks():
+    file_path = UPLOAD_DIR / "resume.pdf"
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Resume has not been uploaded yet.")
+
+    try:
+        text = extract_text_from_pdf(file_path)
+
+        if not text:
+            raise HTTPException(
+                status_code=400, detail="Could not extract any text from the resume."
+            )
+
+        chunks = chunk_text(
+            text,
+            chunk_size=500,
+            chunk_overlap=100,
+        )
+
+        return {
+            "success": True,
+            "message": "Resume chunked successfully.",
+            "total_chunks": len(chunks),
+            "chunks": chunks,
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to chunk resume: {str(e)}")
