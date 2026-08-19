@@ -1,9 +1,16 @@
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+
 from app.services.pdf import extract_text_from_pdf
 from app.services.chunking import chunk_text
 from app.services.embeddings import generate_embeddings
+from app.database import get_knowledge_collection
+from pydantic import BaseModel
+
+class RetrievalRequest(BaseModel):
+    query: str
+    limit: int = 5
 
 router = APIRouter(prefix="/api/resume", tags=["Resume"])
 
@@ -156,4 +163,103 @@ async def generate_resume_embeddings():
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate embeddings: {str(e)}"
+        )
+
+@router.post("/ingest")
+async def ingest_resume():
+    file_path = UPLOAD_DIR / "resume.pdf"
+
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Resume has not been uploaded yet.",
+        )
+
+    try:
+        # Extract text
+        text = extract_text_from_pdf(file_path)
+
+        if not text:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not extract any text from the resume.",
+            )
+
+        # Create chunks
+        chunks = chunk_text(
+            text,
+            chunk_size=500,
+            chunk_overlap=100,
+        )
+
+        if not chunks:
+            raise HTTPException(
+                status_code=400,
+                detail="No chunks were generated.",
+            )
+
+        # Generate embeddings
+        embeddings = generate_embeddings(chunks)
+
+        # Get MongoDB collection
+        collection = get_knowledge_collection()
+
+        # Remove previous resume chunks
+        collection.delete_many({
+            "source": "resume"
+        })
+
+        # Prepare MongoDB documents
+        documents = []
+
+        for index, (chunk, embedding) in enumerate(
+            zip(chunks, embeddings)
+        ):
+            documents.append({
+                "text": chunk,
+                "source": "resume",
+                "chunk_index": index,
+                "embedding": embedding,
+            })
+
+        # Insert all chunks
+        result = collection.insert_many(documents)
+
+        return {
+            "success": True,
+            "message": "Resume ingested successfully.",
+            "total_chunks": len(result.inserted_ids),
+            "embedding_dimensions": len(embeddings[0]),
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to ingest resume: {str(e)}",
+        )
+        
+@router.post("/retrieve")
+async def retrieve_resume_chunks(request: RetrievalRequest):
+    try:
+        from app.services.retrieval import retrieve_relevant_chunks
+
+        results = retrieve_relevant_chunks(
+            request.query,
+            request.limit,
+        )
+
+        return {
+            "success": True,
+            "query": request.query,
+            "results": results,
+            "count": len(results),
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Retrieval failed: {str(e)}",
         )
