@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from app.services.pdf import extract_text_from_pdf
 from app.services.chunking import chunk_text
+from app.services.embeddings import generate_embeddings
 
 router = APIRouter(prefix="/api/resume", tags=["Resume"])
 
@@ -106,3 +107,53 @@ async def get_resume_chunks():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to chunk resume: {str(e)}")
+    
+@router.get("/embeddings")
+async def generate_resume_embeddings():
+    file_path = UPLOAD_DIR / "resume.pdf"
+
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Resume has not been uploaded yet."
+        )
+
+    try:
+        text = extract_text_from_pdf(file_path)
+
+        if not text:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not extract any text from the resume."
+            )
+
+        chunks = chunk_text(
+            text,
+            chunk_size=500,
+            chunk_overlap=100,
+        )
+
+        if not chunks:
+            raise HTTPException(
+                status_code=400,
+                detail="No chunks were generated."
+            )
+
+        embeddings = generate_embeddings(chunks)
+
+        return {
+            "success": True,
+            "message": "Resume embeddings generated successfully.",
+            "total_chunks": len(chunks),
+            "embedding_dimensions": len(embeddings[0]),
+            "embeddings": embeddings,
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate embeddings: {str(e)}"
+        )
