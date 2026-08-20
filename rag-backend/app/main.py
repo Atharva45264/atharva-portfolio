@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from dotenv import load_dotenv
 from app.database import get_database
 from app.routes.resume import router as resume_router
+from pydantic import BaseModel
+from app.services.llm import generate_answer
 
 load_dotenv()
 
@@ -10,6 +12,9 @@ app = FastAPI(
     description="RAG-powered portfolio assistant",
     version="1.0.0",
 )
+
+class LLMTestRequest(BaseModel):
+    question: str
 
 app.include_router(resume_router)
 
@@ -51,3 +56,26 @@ async def test_database():
             "message": "MongoDB connection failed",
             "error": str(e),
         }
+        
+@app.post("/test-llm")
+async def test_llm(request: LLMTestRequest):
+
+    context = """
+    Atharva Phanse is an Information Technology graduate.
+
+    He has experience building full-stack applications,
+    AI-powered applications and automated workflows.
+
+    His projects include FlowForge, NewsNaut and VisionMeet.
+    """
+
+    answer = generate_answer(
+        question=request.question,
+        context=context,
+    )
+
+    return {
+        "success": True,
+        "question": request.question,
+        "answer": answer,
+    }
