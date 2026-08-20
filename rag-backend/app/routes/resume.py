@@ -6,6 +6,8 @@ from app.services.pdf import extract_text_from_pdf
 from app.services.chunking import chunk_text
 from app.services.embeddings import generate_embeddings
 from app.database import get_knowledge_collection
+from app.data.portfolio_data import PORTFOLIO_DATA
+from app.services.ingestion import ingest_portfolio_data
 from pydantic import BaseModel
 
 class RetrievalRequest(BaseModel):
@@ -262,4 +264,31 @@ async def retrieve_resume_chunks(request: RetrievalRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Retrieval failed: {str(e)}",
+        )
+        
+@router.post("/ingest-portfolio")
+async def ingest_portfolio():
+
+    try:
+
+        total_chunks = ingest_portfolio_data(
+            PORTFOLIO_DATA
+        )
+
+        return {
+            "success": True,
+            "message": "Portfolio knowledge ingested successfully.",
+            "total_chunks": total_chunks,
+        }
+
+    except Exception as e:
+
+        print(
+            "Portfolio ingestion error:",
+            e,
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to ingest portfolio data.",
         )

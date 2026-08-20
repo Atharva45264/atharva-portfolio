@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from dotenv import load_dotenv
 from app.database import get_database
 from app.routes.resume import router as resume_router
+from app.routes.chat import router as chat_router
 from pydantic import BaseModel
 from app.services.llm import generate_answer
 
@@ -17,6 +18,7 @@ class LLMTestRequest(BaseModel):
     question: str
 
 app.include_router(resume_router)
+app.include_router(chat_router)
 
 
 @app.get("/")
