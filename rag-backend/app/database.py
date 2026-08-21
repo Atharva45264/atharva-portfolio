@@ -31,3 +31,7 @@ def get_database():
 
 def get_knowledge_collection():
     return knowledge_collection
+
+def get_users_collection():
+    db = get_database()
+    return db["users"]
