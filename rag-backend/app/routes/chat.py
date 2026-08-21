@@ -1,9 +1,8 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.services.embeddings import generate_embedding
+from app.services.retrieval import retrieve_relevant_chunks
 from app.services.llm import generate_answer
-from app.database import get_database
 
 
 router = APIRouter(
@@ -37,54 +36,19 @@ async def chat(request: ChatRequest):
         question = request.question.strip()
 
         if not question:
+
             raise HTTPException(
                 status_code=400,
                 detail="Question cannot be empty.",
             )
 
         # ---------------------------------
-        # GENERATE QUESTION EMBEDDING
+        # RETRIEVE KNOWLEDGE
         # ---------------------------------
 
-        query_embedding = generate_embedding(question)
-
-        # ---------------------------------
-        # GET DATABASE
-        # ---------------------------------
-
-        db = get_database()
-
-        collection = db["knowledge"]
-
-        # ---------------------------------
-        # VECTOR SEARCH
-        # ---------------------------------
-
-        pipeline = [
-            {
-                "$vectorSearch": {
-                    "index": "vector_index",
-                    "path": "embedding",
-                    "queryVector": query_embedding,
-                    "numCandidates": 50,
-                    "limit": request.limit,
-                }
-            },
-            {
-                "$project": {
-                    "_id": 0,
-                    "text": 1,
-                    "source": 1,
-                    "chunk_index": 1,
-                    "score": {
-                        "$meta": "vectorSearchScore"
-                    },
-                }
-            },
-        ]
-
-        results = list(
-            collection.aggregate(pipeline)
+        results = retrieve_relevant_chunks(
+            query=question,
+            limit=request.limit,
         )
 
         # ---------------------------------
@@ -97,29 +61,52 @@ async def chat(request: ChatRequest):
                 "success": True,
                 "question": question,
                 "answer": (
-                    "I don't have enough information in "
-                    "my portfolio data to answer that."
+                    "I don't have enough information "
+                    "in my portfolio data to answer that."
                 ),
                 "sources": [],
             }
 
         # ---------------------------------
-        # BUILD CONTEXT
+        # BUILD STRUCTURED CONTEXT
         # ---------------------------------
 
         context_parts = []
 
         for result in results:
 
-            text = result.get("text", "")
+            title = result.get(
+                "title",
+                "Unknown",
+            )
 
-            if text:
+            category = result.get(
+                "category",
+                "general",
+            )
 
-                context_parts.append(
-                    text
-                )
+            source = result.get(
+                "source",
+                "unknown",
+            )
 
-        context = "\n\n".join(
+            text = result.get(
+                "text",
+                "",
+            )
+
+            context_parts.append(
+                f"""
+TITLE: {title}
+CATEGORY: {category}
+SOURCE: {source}
+
+CONTENT:
+{text}
+""".strip()
+            )
+
+        context = "\n\n---\n\n".join(
             context_parts
         )
 
@@ -133,7 +120,7 @@ async def chat(request: ChatRequest):
         )
 
         # ---------------------------------
-        # RETURN RESPONSE
+        # RETURN SOURCES
         # ---------------------------------
 
         sources = []
@@ -142,11 +129,14 @@ async def chat(request: ChatRequest):
 
             sources.append(
                 {
+                    "title": result.get(
+                        "title"
+                    ),
+                    "category": result.get(
+                        "category"
+                    ),
                     "source": result.get(
                         "source"
-                    ),
-                    "chunk_index": result.get(
-                        "chunk_index"
                     ),
                     "score": result.get(
                         "score"
