@@ -13,6 +13,9 @@ def retrieve_relevant_chunks(
 
     Results are prioritized according to the detected
     intent of the user's question.
+
+    For project-list questions, only one result is
+    returned per project.
     """
 
     query_embedding = generate_embedding(query)
@@ -26,7 +29,7 @@ def retrieve_relevant_chunks(
     intent = detect_intent(query)
 
     # -----------------------------------------
-    # GET MORE VECTOR CANDIDATES
+    # VECTOR SEARCH
     # -----------------------------------------
 
     pipeline = [
@@ -36,7 +39,7 @@ def retrieve_relevant_chunks(
                 "path": "embedding",
                 "queryVector": query_embedding,
                 "numCandidates": 100,
-                "limit": 20,
+                "limit": 30,
             }
         },
         {
@@ -76,11 +79,36 @@ def retrieve_relevant_chunks(
             if result.get("category") != intent
         ]
 
-        # Matching category comes first.
         results = matching + non_matching
 
     # -----------------------------------------
-    # RETURN FINAL RESULTS
+    # REMOVE DUPLICATE PROJECTS
+    # -----------------------------------------
+
+    if intent == "project":
+
+        unique_projects = []
+        seen_projects = set()
+
+        for result in results:
+
+            title = result.get("title")
+
+            if (
+                result.get("category") == "project"
+                and title not in seen_projects
+            ):
+                unique_projects.append(result)
+                seen_projects.add(title)
+
+        # If we found enough unique projects,
+        # return one chunk per project.
+        if unique_projects:
+
+            return unique_projects[:limit]
+
+    # -----------------------------------------
+    # DEFAULT RESULT
     # -----------------------------------------
 
     return results[:limit]
