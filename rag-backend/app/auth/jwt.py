@@ -1,8 +1,9 @@
 import os
 from datetime import datetime, timedelta, timezone
 
-from jose import JWTError, jwt
 from dotenv import load_dotenv
+from jose import JWTError, jwt
+
 
 load_dotenv()
 
@@ -90,7 +91,7 @@ def create_refresh_token(
 
 
 # =========================================
-# VERIFY TOKEN
+# DECODE TOKEN
 # =========================================
 
 def decode_token(
@@ -110,3 +111,41 @@ def decode_token(
     except JWTError:
 
         return None
+
+
+# =========================================
+# VERIFY ACCESS TOKEN
+# =========================================
+
+def verify_access_token(
+    token: str,
+):
+
+    payload = decode_token(token)
+
+    if not payload:
+        return None
+
+    if payload.get("type") != "access":
+        return None
+
+    return payload
+
+
+# =========================================
+# VERIFY REFRESH TOKEN
+# =========================================
+
+def verify_refresh_token(
+    token: str,
+):
+
+    payload = decode_token(token)
+
+    if not payload:
+        return None
+
+    if payload.get("type") != "refresh":
+        return None
+
+    return payload
