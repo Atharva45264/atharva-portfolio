@@ -1,19 +1,29 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from app.database import get_users_collection
+
 from app.auth.password import (
     hash_password,
     verify_password,
 )
+
 from app.auth.jwt import (
     create_access_token,
     create_refresh_token,
     verify_refresh_token,
+    REFRESH_TOKEN_EXPIRE_DAYS,
 )
+
+from app.auth.refresh_tokens import (
+    store_refresh_token,
+    find_refresh_token,
+    revoke_refresh_token,
+)
+
 from app.auth.dependencies import get_current_user
 
 
@@ -93,12 +103,32 @@ async def register(
         result.inserted_id
     )
 
+    # =====================================
+    # CREATE TOKENS
+    # =====================================
+
     access_token = create_access_token(
         user_id
     )
 
     refresh_token = create_refresh_token(
         user_id
+    )
+
+    # =====================================
+    # STORE REFRESH TOKEN
+    # =====================================
+
+    refresh_expires_at = datetime.now(
+        timezone.utc
+    ) + timedelta(
+        days=REFRESH_TOKEN_EXPIRE_DAYS
+    )
+
+    store_refresh_token(
+        token=refresh_token,
+        user_id=user_id,
+        expires_at=refresh_expires_at,
     )
 
     return {
@@ -155,12 +185,32 @@ async def login(
         user["_id"]
     )
 
+    # =====================================
+    # CREATE TOKENS
+    # =====================================
+
     access_token = create_access_token(
         user_id
     )
 
     refresh_token = create_refresh_token(
         user_id
+    )
+
+    # =====================================
+    # STORE REFRESH TOKEN
+    # =====================================
+
+    refresh_expires_at = datetime.now(
+        timezone.utc
+    ) + timedelta(
+        days=REFRESH_TOKEN_EXPIRE_DAYS
+    )
+
+    store_refresh_token(
+        token=refresh_token,
+        user_id=user_id,
+        expires_at=refresh_expires_at,
     )
 
     return {
@@ -186,6 +236,10 @@ async def refresh(
     request: RefreshRequest,
 ):
 
+    # =====================================
+    # 1. VERIFY JWT
+    # =====================================
+
     payload = verify_refresh_token(
         request.refresh_token
     )
@@ -205,6 +259,54 @@ async def refresh(
             status_code=401,
             detail="Invalid refresh token.",
         )
+
+    # =====================================
+    # 2. CHECK MONGODB
+    # =====================================
+
+    stored_token = find_refresh_token(
+        request.refresh_token
+    )
+
+    if not stored_token:
+
+        raise HTTPException(
+            status_code=401,
+            detail="Refresh token has been revoked or does not exist.",
+        )
+
+    # =====================================
+    # 3. CHECK TOKEN EXPIRATION IN DATABASE
+    # =====================================
+
+    expires_at = stored_token.get(
+        "expires_at"
+    )
+
+    if expires_at:
+
+        if expires_at.tzinfo is None:
+
+            expires_at = expires_at.replace(
+                tzinfo=timezone.utc
+            )
+
+        if expires_at <= datetime.now(
+            timezone.utc
+        ):
+
+            revoke_refresh_token(
+                request.refresh_token
+            )
+
+            raise HTTPException(
+                status_code=401,
+                detail="Refresh token has expired.",
+            )
+
+    # =====================================
+    # 4. VERIFY USER ID
+    # =====================================
 
     try:
 
@@ -227,18 +329,59 @@ async def refresh(
 
     if not user:
 
+        revoke_refresh_token(
+            request.refresh_token
+        )
+
         raise HTTPException(
             status_code=401,
             detail="User no longer exists.",
         )
 
+    # =====================================
+    # 5. REVOKE OLD REFRESH TOKEN
+    # =====================================
+
+    revoke_refresh_token(
+        request.refresh_token
+    )
+
+    # =====================================
+    # 6. CREATE NEW TOKENS
+    # =====================================
+
     new_access_token = create_access_token(
         user_id
     )
 
+    new_refresh_token = create_refresh_token(
+        user_id
+    )
+
+    # =====================================
+    # 7. STORE NEW REFRESH TOKEN
+    # =====================================
+
+    new_refresh_expires_at = datetime.now(
+        timezone.utc
+    ) + timedelta(
+        days=REFRESH_TOKEN_EXPIRE_DAYS
+    )
+
+    store_refresh_token(
+        token=new_refresh_token,
+        user_id=user_id,
+        expires_at=new_refresh_expires_at,
+    )
+
+    # =====================================
+    # 8. RETURN NEW TOKENS
+    # =====================================
+
     return {
         "success": True,
         "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
         "token_type": "bearer",
     }
 
@@ -272,17 +415,27 @@ async def get_me(
 
 @router.post("/logout")
 async def logout(
+    request: RefreshRequest,
     current_user=Depends(
         get_current_user
     ),
 ):
 
-    # For now, logout is handled client-side
-    # by removing the stored tokens.
-    #
-    # We will add refresh-token persistence
-    # and revocation in the next authentication
-    # refinement.
+    refresh_token = request.refresh_token
+
+    # =====================================
+    # REVOKE REFRESH TOKEN
+    # =====================================
+
+    stored_token = find_refresh_token(
+        refresh_token
+    )
+
+    if stored_token:
+
+        revoke_refresh_token(
+            refresh_token
+        )
 
     return {
         "success": True,

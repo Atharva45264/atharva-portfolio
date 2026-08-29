@@ -35,3 +35,7 @@ def get_knowledge_collection():
 def get_users_collection():
     db = get_database()
     return db["users"]
+
+def get_refresh_tokens_collection():
+    db = get_database()
+    return db["refresh_tokens"]
