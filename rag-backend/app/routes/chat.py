@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.services.retrieval import retrieve_relevant_chunks
 from app.services.llm import generate_answer
+from app.auth.dependencies import get_current_user
 
 
 router = APIRouter(
@@ -25,7 +26,12 @@ class ChatRequest(BaseModel):
 # =========================================
 
 @router.post("")
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    current_user=Depends(
+        get_current_user
+    ),
+):
 
     try:
 
