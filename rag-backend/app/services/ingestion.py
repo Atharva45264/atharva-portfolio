@@ -20,6 +20,7 @@ def ingest_portfolio_data(portfolio_data):
         title = item.get("title", "Unknown")
         category = item.get("category", "general")
         source = item.get("source", "portfolio")
+        url = item.get("url", "")
         text = item.get("text", "").strip()
 
         if not text:
@@ -46,6 +47,7 @@ def ingest_portfolio_data(portfolio_data):
                 "title": title,
                 "category": category,
                 "source": source,
+                "url": url,
                 "text": chunk,
                 "chunk_index": index,
                 "embedding": embedding,

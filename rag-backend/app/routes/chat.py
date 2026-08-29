@@ -144,6 +144,9 @@ CONTENT:
                     "source": result.get(
                         "source"
                     ),
+                    "url": result.get(
+                        "url"
+                    ),
                     "score": result.get(
                         "score"
                     ),

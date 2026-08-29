@@ -48,6 +48,7 @@ def retrieve_relevant_chunks(
                 "title": 1,
                 "category": 1,
                 "source": 1,
+                "url": 1,
                 "text": 1,
                 "chunk_index": 1,
                 "score": {
@@ -101,8 +102,6 @@ def retrieve_relevant_chunks(
                 unique_projects.append(result)
                 seen_projects.add(title)
 
-        # If we found enough unique projects,
-        # return one chunk per project.
         if unique_projects:
 
             return unique_projects[:limit]

@@ -8,6 +8,7 @@ PORTFOLIO_DATA = [
         "title": "About Atharva",
         "category": "about",
         "source": "resume",
+        "url": "",
         "text": """
 Atharva Phanse is a software developer with an Information Technology
 background and hands-on experience in software development, full-stack
@@ -29,8 +30,9 @@ integration.
 
     {
         "title": "Education",
-        "category": "education",
-        "source": "resume",
+    "category": "education",
+    "source": "resume",
+    "url": "",
         "text": """
 Atharva Phanse completed a B.E. in Information Technology from
 Atharva College of Engineering.
@@ -47,9 +49,10 @@ CGPA: 8.35.
     # =========================================================
 
     {
-        "title": "Technical Skills",
-        "category": "skills",
-        "source": "resume",
+        "title": "Interext Technologies",
+    "category": "experience",
+    "source": "resume",
+    "url": "",
         "text": """
 Atharva's programming languages include Python, JavaScript, TypeScript,
 SQL, HTML and CSS.
@@ -75,8 +78,9 @@ Google Apps Script and Looker Studio.
 
     {
         "title": "Interext Technologies",
-        "category": "experience",
-        "source": "resume",
+    "category": "experience",
+    "source": "resume",
+    "url": "",
         "text": """
 Atharva Phanse worked as a Software Intern at Interext Technologies
 Pvt. Ltd. in Mumbai from March 2025 to April 2025.
@@ -98,8 +102,9 @@ and supporting business decision-making.
 
     {
         "title": "FlowForge",
-        "category": "project",
-        "source": "github",
+    "category": "project",
+    "source": "github",
+    "url": "https://github.com/Atharva45264/FlowForge",
         "text": """
 FlowForge is an all-in-one productivity platform developed by
 Atharva Phanse.
@@ -129,6 +134,7 @@ combining workspace and collaboration functionality.
         "title": "NewsNaut",
         "category": "project",
         "source": "github",
+        "url": "https://github.com/Atharva45264/NewsNaut",
         "text": """
 NewsNaut is an AI-powered news aggregation and YouTube tracking
 platform developed by Atharva Phanse.
@@ -155,6 +161,7 @@ and GitHub Actions for scheduled content processing.
         "title": "VisionMeet",
         "category": "project",
         "source": "github",
+        "url": "https://github.com/Atharva45264/VisionMeet",
         "text": """
 VisionMeet is an AI-powered smart meeting assistant developed
 by Atharva Phanse.
@@ -191,6 +198,7 @@ uses Next.js.
         "title": "Sentinel AI Network IDS",
         "category": "project",
         "source": "github",
+        "url": "https://github.com/Atharva45264/Sentinel-AI-Network-IDS",
         "text": """
 Sentinel AI Network IDS is a network intrusion detection project
 developed by Atharva Phanse.
@@ -215,6 +223,7 @@ techniques to network security and anomaly detection.
         "title": "Atharva Portfolio",
         "category": "project",
         "source": "github",
+        "url": "https://github.com/Atharva45264/atharva-portfolio",
         "text": """
 Atharva Phanse's portfolio website is a modern personal portfolio
 built to showcase his professional profile, technical skills,
@@ -243,6 +252,7 @@ provided as part of the portfolio knowledge base.
         "title": "CSI Committee",
         "category": "volunteering",
         "source": "resume",
+        "url": "",
         "text": """
 Atharva Phanse was part of the CSI Committee from 2023 to 2025.
 
