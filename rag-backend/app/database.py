@@ -39,3 +39,7 @@ def get_users_collection():
 def get_refresh_tokens_collection():
     db = get_database()
     return db["refresh_tokens"]
+
+def get_conversations_collection():
+    db = get_database()
+    return db["conversations"]
