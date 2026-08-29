@@ -144,34 +144,84 @@ respond:
 def generate_answer(
     question: str,
     context: str,
+    conversation_history=None,
 ) -> str:
 
+    # -----------------------------------------
+    # BUILD CONVERSATION HISTORY
+    # -----------------------------------------
+
+    history_text = ""
+
+    if conversation_history:
+
+        history_parts = []
+
+        for message in conversation_history:
+
+            role = message.get(
+                "role",
+                "user",
+            )
+
+            content = message.get(
+                "content",
+                "",
+            )
+
+            if content:
+
+                history_parts.append(
+                    f"{role.upper()}: {content}"
+                )
+
+        if history_parts:
+
+            history_text = "\n".join(
+                history_parts
+            )
+
+    # -----------------------------------------
+    # BUILD USER PROMPT
+    # -----------------------------------------
+
     user_prompt = f"""
-CONTEXT START
+CONVERSATION HISTORY
+========================
+
+{history_text if history_text else "No previous conversation."}
+
+
+CURRENT PORTFOLIO CONTEXT
 ========================
 
 {context}
 
-========================
-CONTEXT END
 
-
-USER QUESTION
+CURRENT USER QUESTION
 ========================
 
 {question}
 
 
-Using ONLY the provided context, answer the user's question.
+Using ONLY the provided portfolio context and relevant
+conversation history, answer the user's current question.
 
 Remember:
 
+- The portfolio context is the source of truth.
 - Do not invent information.
 - Do not confuse technologies with projects.
-- Use the category and title metadata when deciding what
-  information is relevant.
-- If the information is unavailable, clearly say so.
+- Use conversation history only to understand references
+  such as "it", "that project", "he", "this", etc.
+- If the requested information is not available in the
+  portfolio context, say:
+  "I don't have that information in my portfolio data."
 """
+
+    # -----------------------------------------
+    # CALL GROQ
+    # -----------------------------------------
 
     response = client.chat.completions.create(
 
@@ -192,6 +242,10 @@ Remember:
 
         max_tokens=600,
     )
+
+    # -----------------------------------------
+    # EXTRACT ANSWER
+    # -----------------------------------------
 
     answer = response.choices[
         0

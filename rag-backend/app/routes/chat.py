@@ -51,12 +51,15 @@ async def chat(
             )
 
         # ---------------------------------
-        # GET CONVERSATIONS COLLECTION
+        # CONVERSATION SETUP
         # ---------------------------------
 
         conversations = get_conversations_collection()
 
         conversation = None
+
+        # Always initialize history
+        conversation_history = []
 
         # ---------------------------------
         # LOAD EXISTING CONVERSATION
@@ -66,14 +69,12 @@ async def chat(
 
             try:
 
-                conversation = conversations.find_one(
-                    {
-                        "_id": ObjectId(
-                            request.conversation_id
-                        ),
-                        "user_id": current_user["_id"],
-                    }
-                )
+                conversation = conversations.find_one({
+                    "_id": ObjectId(
+                        request.conversation_id
+                    ),
+                    "user_id": current_user["_id"],
+                })
 
             except Exception:
 
@@ -89,48 +90,10 @@ async def chat(
                     detail="Conversation not found.",
                 )
 
-        # ---------------------------------
-        # CREATE NEW CONVERSATION
-        # ---------------------------------
-
-        now = datetime.now(timezone.utc)
-
-        if conversation is None:
-
-            conversation = {
-                "user_id": current_user["_id"],
-                "messages": [],
-                "created_at": now,
-                "updated_at": now,
-            }
-
-            result = conversations.insert_one(
-                conversation
+            conversation_history = conversation.get(
+                "messages",
+                []
             )
-
-            conversation["_id"] = result.inserted_id
-
-        # ---------------------------------
-        # SAVE USER MESSAGE
-        # ---------------------------------
-
-        conversations.update_one(
-            {
-                "_id": conversation["_id"],
-                "user_id": current_user["_id"],
-            },
-            {
-                "$push": {
-                    "messages": {
-                        "role": "user",
-                        "content": question,
-                    }
-                },
-                "$set": {
-                    "updated_at": now,
-                },
-            },
-        )
 
         # ---------------------------------
         # RETRIEVE KNOWLEDGE
@@ -152,26 +115,63 @@ async def chat(
                 "in my portfolio data to answer that."
             )
 
-            # Save assistant response
-            conversations.update_one(
-                {
-                    "_id": conversation["_id"],
+            # Save conversation even when no RAG result
+            if conversation:
+
+                now = datetime.now(timezone.utc)
+
+                conversations.update_one(
+                    {
+                        "_id": conversation["_id"],
+                        "user_id": current_user["_id"],
+                    },
+                    {
+                        "$push": {
+                            "messages": {
+                                "$each": [
+                                    {
+                                        "role": "user",
+                                        "content": question,
+                                    },
+                                    {
+                                        "role": "assistant",
+                                        "content": answer,
+                                    },
+                                ]
+                            }
+                        },
+                        "$set": {
+                            "updated_at": now,
+                        },
+                    },
+                )
+
+            else:
+
+                now = datetime.now(timezone.utc)
+
+                new_conversation = {
                     "user_id": current_user["_id"],
-                },
-                {
-                    "$push": {
-                        "messages": {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": question,
+                        },
+                        {
                             "role": "assistant",
                             "content": answer,
-                        }
-                    },
-                    "$set": {
-                        "updated_at": datetime.now(
-                            timezone.utc
-                        ),
-                    },
-                },
-            )
+                        },
+                    ],
+                    "created_at": now,
+                    "updated_at": now,
+                }
+
+                result = conversations.insert_one(
+                    new_conversation
+                )
+
+                conversation = new_conversation
+                conversation["_id"] = result.inserted_id
 
             return {
                 "success": True,
@@ -231,33 +231,10 @@ CONTENT:
         # ---------------------------------
 
         answer = generate_answer(
-            question=question,
-            context=context,
-        )
-
-        # ---------------------------------
-        # SAVE ASSISTANT MESSAGE
-        # ---------------------------------
-
-        conversations.update_one(
-            {
-                "_id": conversation["_id"],
-                "user_id": current_user["_id"],
-            },
-            {
-                "$push": {
-                    "messages": {
-                        "role": "assistant",
-                        "content": answer,
-                    }
-                },
-                "$set": {
-                    "updated_at": datetime.now(
-                        timezone.utc
-                    ),
-                },
-            },
-        )
+    question=question,
+    context=context,
+    conversation_history=conversation_history,
+)
 
         # ---------------------------------
         # RETURN SOURCES
@@ -288,7 +265,66 @@ CONTENT:
             )
 
         # ---------------------------------
-        # FINAL RESPONSE
+        # SAVE CONVERSATION
+        # ---------------------------------
+
+        now = datetime.now(timezone.utc)
+
+        user_message = {
+            "role": "user",
+            "content": question,
+        }
+
+        assistant_message = {
+            "role": "assistant",
+            "content": answer,
+        }
+
+        # Existing conversation
+        if conversation:
+
+            conversations.update_one(
+                {
+                    "_id": conversation["_id"],
+                    "user_id": current_user["_id"],
+                },
+                {
+                    "$push": {
+                        "messages": {
+                            "$each": [
+                                user_message,
+                                assistant_message,
+                            ]
+                        }
+                    },
+                    "$set": {
+                        "updated_at": now,
+                    },
+                },
+            )
+
+        # New conversation
+        else:
+
+            new_conversation = {
+                "user_id": current_user["_id"],
+                "messages": [
+                    user_message,
+                    assistant_message,
+                ],
+                "created_at": now,
+                "updated_at": now,
+            }
+
+            result = conversations.insert_one(
+                new_conversation
+            )
+
+            conversation = new_conversation
+            conversation["_id"] = result.inserted_id
+
+        # ---------------------------------
+        # RESPONSE
         # ---------------------------------
 
         return {
@@ -301,17 +337,17 @@ CONTENT:
             ),
         }
 
-    # =====================================
-    # HTTP EXCEPTIONS
-    # =====================================
+    # -------------------------------------
+    # HTTP ERRORS
+    # -------------------------------------
 
     except HTTPException:
 
         raise
 
-    # =====================================
+    # -------------------------------------
     # UNEXPECTED ERRORS
-    # =====================================
+    # -------------------------------------
 
     except Exception as error:
 
