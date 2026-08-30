@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from bson import ObjectId
 from datetime import datetime, timezone
 
 from app.services.retrieval import retrieve_relevant_chunks
 from app.services.llm import generate_answer
+from app.services.conversation import build_retrieval_query
 from app.auth.dependencies import get_current_user
 from app.database import get_conversations_collection
 
@@ -20,9 +21,20 @@ router = APIRouter(
 # =========================================
 
 class ChatRequest(BaseModel):
-    question: str
-    limit: int = 5
+
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+    )
+
     conversation_id: str | None = None
+
+    limit: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+    )
 
 
 # =========================================
@@ -37,44 +49,41 @@ async def chat(
 
     try:
 
-        # ---------------------------------
-        # VALIDATE QUESTION
-        # ---------------------------------
+        # =====================================
+        # VALIDATE MESSAGE
+        # =====================================
 
-        question = request.question.strip()
+        message = request.message.strip()
 
-        if not question:
+        if not message:
 
             raise HTTPException(
                 status_code=400,
-                detail="Question cannot be empty.",
+                detail="Message cannot be empty.",
             )
 
-        # ---------------------------------
-        # CONVERSATION SETUP
-        # ---------------------------------
+        # =====================================
+        # DATABASE
+        # =====================================
 
         conversations = get_conversations_collection()
 
+        user_id = current_user["_id"]
+
         conversation = None
+        conversation_object_id = None
 
-        # Always initialize history
-        conversation_history = []
-
-        # ---------------------------------
+        # =====================================
         # LOAD EXISTING CONVERSATION
-        # ---------------------------------
+        # =====================================
 
         if request.conversation_id:
 
             try:
 
-                conversation = conversations.find_one({
-                    "_id": ObjectId(
-                        request.conversation_id
-                    ),
-                    "user_id": current_user["_id"],
-                })
+                conversation_object_id = ObjectId(
+                    request.conversation_id
+                )
 
             except Exception:
 
@@ -83,6 +92,13 @@ async def chat(
                     detail="Invalid conversation ID.",
                 )
 
+            conversation = conversations.find_one(
+                {
+                    "_id": conversation_object_id,
+                    "user_id": user_id,
+                }
+            )
+
             if not conversation:
 
                 raise HTTPException(
@@ -90,102 +106,41 @@ async def chat(
                     detail="Conversation not found.",
                 )
 
+        # =====================================
+        # GET CONVERSATION HISTORY
+        # =====================================
+
+        conversation_history = []
+
+        if conversation:
+
             conversation_history = conversation.get(
                 "messages",
                 []
             )
 
-        # ---------------------------------
+        # =====================================
+        # BUILD CONVERSATION-AWARE QUERY
+        # =====================================
+
+        retrieval_query = build_retrieval_query(
+            question=message,
+            conversation_history=conversation_history,
+        )
+
+        # =====================================
         # RETRIEVE KNOWLEDGE
-        # ---------------------------------
+        # =====================================
 
         results = retrieve_relevant_chunks(
-            query=question,
+            query=message,
+            retrieval_query=retrieval_query,
             limit=request.limit,
         )
 
-        # ---------------------------------
-        # NO RESULTS
-        # ---------------------------------
-
-        if not results:
-
-            answer = (
-                "I don't have enough information "
-                "in my portfolio data to answer that."
-            )
-
-            # Save conversation even when no RAG result
-            if conversation:
-
-                now = datetime.now(timezone.utc)
-
-                conversations.update_one(
-                    {
-                        "_id": conversation["_id"],
-                        "user_id": current_user["_id"],
-                    },
-                    {
-                        "$push": {
-                            "messages": {
-                                "$each": [
-                                    {
-                                        "role": "user",
-                                        "content": question,
-                                    },
-                                    {
-                                        "role": "assistant",
-                                        "content": answer,
-                                    },
-                                ]
-                            }
-                        },
-                        "$set": {
-                            "updated_at": now,
-                        },
-                    },
-                )
-
-            else:
-
-                now = datetime.now(timezone.utc)
-
-                new_conversation = {
-                    "user_id": current_user["_id"],
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": question,
-                        },
-                        {
-                            "role": "assistant",
-                            "content": answer,
-                        },
-                    ],
-                    "created_at": now,
-                    "updated_at": now,
-                }
-
-                result = conversations.insert_one(
-                    new_conversation
-                )
-
-                conversation = new_conversation
-                conversation["_id"] = result.inserted_id
-
-            return {
-                "success": True,
-                "question": question,
-                "answer": answer,
-                "sources": [],
-                "conversation_id": str(
-                    conversation["_id"]
-                ),
-            }
-
-        # ---------------------------------
-        # BUILD STRUCTURED CONTEXT
-        # ---------------------------------
+        # =====================================
+        # BUILD CONTEXT
+        # =====================================
 
         context_parts = []
 
@@ -226,74 +181,146 @@ CONTENT:
             context_parts
         )
 
-        # ---------------------------------
+        # =====================================
         # GENERATE ANSWER
-        # ---------------------------------
+        # =====================================
 
-        answer = generate_answer(
-    question=question,
-    context=context,
-    conversation_history=conversation_history,
-)
+        if results:
 
-        # ---------------------------------
-        # RETURN SOURCES
-        # ---------------------------------
+            answer = generate_answer(
+                question=message,
+                context=context,
+                conversation_history=conversation_history,
+            )
+
+        else:
+
+            answer = (
+                "I don't have that information "
+                "in my portfolio data."
+            )
+
+        # =====================================
+        # BUILD SOURCES
+        # =====================================
 
         sources = []
 
+        seen_sources = set()
+
         for result in results:
+
+            title = result.get(
+                "title"
+            )
+
+            category = result.get(
+                "category"
+            )
+
+            source = result.get(
+                "source"
+            )
+
+            url = result.get(
+                "url"
+            )
+
+            source_key = (
+                title,
+                category,
+                source,
+                url,
+            )
+
+            # Prevent duplicate sources
+            if source_key in seen_sources:
+                continue
+
+            seen_sources.add(
+                source_key
+            )
 
             sources.append(
                 {
-                    "title": result.get(
-                        "title"
-                    ),
-                    "category": result.get(
-                        "category"
-                    ),
-                    "source": result.get(
-                        "source"
-                    ),
-                    "url": result.get(
-                        "url"
-                    ),
+                    "title": title,
+                    "category": category,
+                    "source": source,
+                    "url": url,
                     "score": result.get(
                         "score"
                     ),
                 }
             )
 
-        # ---------------------------------
-        # SAVE CONVERSATION
-        # ---------------------------------
+        # =====================================
+        # CURRENT TIMESTAMP
+        # =====================================
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(
+            timezone.utc
+        )
 
-        user_message = {
-            "role": "user",
-            "content": question,
-        }
+        # =====================================
+        # CREATE NEW CONVERSATION
+        # =====================================
 
-        assistant_message = {
-            "role": "assistant",
-            "content": answer,
-        }
+        if conversation is None:
 
-        # Existing conversation
-        if conversation:
+            new_conversation = {
+
+                "user_id": user_id,
+
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": message,
+                        "created_at": now,
+                    },
+                    {
+                        "role": "assistant",
+                        "content": answer,
+                        "created_at": now,
+                    },
+                ],
+
+                "created_at": now,
+                "updated_at": now,
+            }
+
+            result = conversations.insert_one(
+                new_conversation
+            )
+
+            conversation_object_id = (
+                result.inserted_id
+            )
+
+        # =====================================
+        # UPDATE EXISTING CONVERSATION
+        # =====================================
+
+        else:
 
             conversations.update_one(
                 {
-                    "_id": conversation["_id"],
-                    "user_id": current_user["_id"],
+                    "_id": conversation_object_id,
+                    "user_id": user_id,
                 },
                 {
                     "$push": {
                         "messages": {
                             "$each": [
-                                user_message,
-                                assistant_message,
+                                {
+                                    "role": "user",
+                                    "content": message,
+                                    "created_at": now,
+                                },
+                                {
+                                    "role": "assistant",
+                                    "content": answer,
+                                    "created_at": now,
+                                },
                             ]
                         }
                     },
@@ -303,51 +330,30 @@ CONTENT:
                 },
             )
 
-        # New conversation
-        else:
-
-            new_conversation = {
-                "user_id": current_user["_id"],
-                "messages": [
-                    user_message,
-                    assistant_message,
-                ],
-                "created_at": now,
-                "updated_at": now,
-            }
-
-            result = conversations.insert_one(
-                new_conversation
-            )
-
-            conversation = new_conversation
-            conversation["_id"] = result.inserted_id
-
-        # ---------------------------------
-        # RESPONSE
-        # ---------------------------------
+        # =====================================
+        # RETURN RESPONSE
+        # =====================================
 
         return {
             "success": True,
-            "question": question,
             "answer": answer,
-            "sources": sources,
             "conversation_id": str(
-                conversation["_id"]
+                conversation_object_id
             ),
+            "sources": sources,
         }
 
-    # -------------------------------------
-    # HTTP ERRORS
-    # -------------------------------------
+    # =========================================
+    # EXPECTED HTTP ERRORS
+    # =========================================
 
     except HTTPException:
 
         raise
 
-    # -------------------------------------
+    # =========================================
     # UNEXPECTED ERRORS
-    # -------------------------------------
+    # =========================================
 
     except Exception as error:
 

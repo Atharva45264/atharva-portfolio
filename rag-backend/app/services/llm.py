@@ -147,11 +147,7 @@ def generate_answer(
     conversation_history=None,
 ) -> str:
 
-    # -----------------------------------------
-    # BUILD CONVERSATION HISTORY
-    # -----------------------------------------
-
-    history_text = ""
+    history_text = "No previous conversation."
 
     if conversation_history:
 
@@ -181,15 +177,11 @@ def generate_answer(
                 history_parts
             )
 
-    # -----------------------------------------
-    # BUILD USER PROMPT
-    # -----------------------------------------
-
     user_prompt = f"""
 CONVERSATION HISTORY
 ========================
 
-{history_text if history_text else "No previous conversation."}
+{history_text}
 
 
 CURRENT PORTFOLIO CONTEXT
@@ -207,21 +199,22 @@ CURRENT USER QUESTION
 Using ONLY the provided portfolio context and relevant
 conversation history, answer the user's current question.
 
-Remember:
+IMPORTANT RULES:
 
 - The portfolio context is the source of truth.
 - Do not invent information.
-- Do not confuse technologies with projects.
-- Use conversation history only to understand references
+- Do not add technologies that are not explicitly present
+  in the portfolio context.
+- Do not guess what a technology, library, API or tool does.
+- Conversation history may only be used to understand references
   such as "it", "that project", "he", "this", etc.
 - If the requested information is not available in the
   portfolio context, say:
-  "I don't have that information in my portfolio data."
-"""
 
-    # -----------------------------------------
-    # CALL GROQ
-    # -----------------------------------------
+"I don't have that information in my portfolio data."
+
+Keep the answer concise and useful.
+"""
 
     response = client.chat.completions.create(
 
@@ -242,10 +235,6 @@ Remember:
 
         max_tokens=600,
     )
-
-    # -----------------------------------------
-    # EXTRACT ANSWER
-    # -----------------------------------------
 
     answer = response.choices[
         0
