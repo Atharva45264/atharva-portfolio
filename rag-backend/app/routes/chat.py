@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from bson import ObjectId
 from datetime import datetime, timezone
@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from app.services.retrieval import retrieve_relevant_chunks
 from app.services.llm import generate_answer
 from app.services.conversation import build_retrieval_query
-from app.auth.dependencies import get_current_user
 from app.database import get_conversations_collection
 
 
@@ -44,7 +43,6 @@ class ChatRequest(BaseModel):
 @router.post("")
 async def chat(
     request: ChatRequest,
-    current_user=Depends(get_current_user),
 ):
 
     try:
@@ -67,8 +65,6 @@ async def chat(
         # =====================================
 
         conversations = get_conversations_collection()
-
-        user_id = current_user["_id"]
 
         conversation = None
         conversation_object_id = None
@@ -95,7 +91,6 @@ async def chat(
             conversation = conversations.find_one(
                 {
                     "_id": conversation_object_id,
-                    "user_id": user_id,
                 }
             )
 
@@ -169,10 +164,13 @@ async def chat(
             context_parts.append(
                 f"""
 TITLE: {title}
+
 CATEGORY: {category}
+
 SOURCE: {source}
 
 CONTENT:
+
 {text}
 """.strip()
             )
@@ -269,19 +267,20 @@ CONTENT:
 
             new_conversation = {
 
-                "user_id": user_id,
-
                 "messages": [
+
                     {
                         "role": "user",
                         "content": message,
                         "created_at": now,
                     },
+
                     {
                         "role": "assistant",
                         "content": answer,
                         "created_at": now,
                     },
+
                 ],
 
                 "created_at": now,
@@ -303,31 +302,43 @@ CONTENT:
         else:
 
             conversations.update_one(
+
                 {
                     "_id": conversation_object_id,
-                    "user_id": user_id,
                 },
+
                 {
+
                     "$push": {
+
                         "messages": {
+
                             "$each": [
+
                                 {
                                     "role": "user",
                                     "content": message,
                                     "created_at": now,
                                 },
+
                                 {
                                     "role": "assistant",
                                     "content": answer,
                                     "created_at": now,
                                 },
+
                             ]
+
                         }
+
                     },
+
                     "$set": {
                         "updated_at": now,
                     },
+
                 },
+
             )
 
         # =====================================
@@ -335,12 +346,17 @@ CONTENT:
         # =====================================
 
         return {
+
             "success": True,
+
             "answer": answer,
+
             "conversation_id": str(
                 conversation_object_id
             ),
+
             "sources": sources,
+
         }
 
     # =========================================
