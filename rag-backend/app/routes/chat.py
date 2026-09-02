@@ -176,13 +176,12 @@ async def chat(
         conversation_history = []
 
         if conversation:
-
-            conversation_history = (
-                conversation.get(
-                    "messages",
-                    [],
-                )
-            )
+         conversation_history = (
+         conversation.get(
+            "messages",
+            [],
+          )[-12:]
+        )
 
 
         # =========================================
