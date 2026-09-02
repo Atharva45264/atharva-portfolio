@@ -1,9 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
+
 from pydantic import BaseModel, Field
+
 from bson import ObjectId
 
 from app.auth.dependencies import get_current_user
+
 from app.database import get_conversations_collection
+
+from app.services.public_session import (
+    verify_conversation_token,
+)
 
 
 router = APIRouter(
@@ -17,6 +24,7 @@ router = APIRouter(
 # =========================================
 
 class RenameConversationRequest(BaseModel):
+
     title: str = Field(
         ...,
         min_length=1,
@@ -32,7 +40,9 @@ class RenameConversationRequest(BaseModel):
 async def list_conversations(
     current_user=Depends(get_current_user),
 ):
+
     try:
+
         conversations = get_conversations_collection()
 
         user_id = current_user["_id"]
@@ -98,43 +108,103 @@ async def list_conversations(
 
 
 # =========================================
+# PUBLIC CONVERSATION HELPER
+# =========================================
+
+def get_public_conversation(
+    conversation_id: str,
+    conversation_token: str | None,
+):
+
+    if not conversation_token:
+
+        raise HTTPException(
+            status_code=401,
+            detail="Conversation token required.",
+        )
+
+    try:
+
+        object_id = ObjectId(
+            conversation_id
+        )
+
+    except Exception:
+
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid conversation ID.",
+        )
+
+    conversations = get_conversations_collection()
+
+    conversation = conversations.find_one(
+        {
+            "_id": object_id,
+        }
+    )
+
+    if not conversation:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation not found.",
+        )
+
+    stored_token_hash = conversation.get(
+        "conversation_token_hash"
+    )
+
+    if not stored_token_hash:
+
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "Conversation token is not configured "
+                "for this conversation."
+            ),
+        )
+
+    token_valid = verify_conversation_token(
+        conversation_token,
+        stored_token_hash,
+    )
+
+    if not token_valid:
+
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid conversation token.",
+        )
+
+    return (
+        conversation,
+        object_id,
+        conversations,
+    )
+
+
+# =========================================
 # GET SINGLE CONVERSATION
 # =========================================
 
 @router.get("/{conversation_id}")
 async def get_conversation(
     conversation_id: str,
-    current_user=Depends(get_current_user),
+    x_conversation_token: str | None = Header(
+        default=None,
+        alias="X-Conversation-Token",
+    ),
 ):
+
     try:
 
-        try:
-            object_id = ObjectId(
-                conversation_id
+        conversation, object_id, conversations = (
+            get_public_conversation(
+                conversation_id,
+                x_conversation_token,
             )
-
-        except Exception:
-
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid conversation ID.",
-            )
-
-        conversations = get_conversations_collection()
-
-        conversation = conversations.find_one(
-            {
-                "_id": object_id,
-                "user_id": current_user["_id"],
-            }
         )
-
-        if not conversation:
-
-            raise HTTPException(
-                status_code=404,
-                detail="Conversation not found.",
-            )
 
         messages = []
 
@@ -178,6 +248,7 @@ async def get_conversation(
         }
 
     except HTTPException:
+
         raise
 
     except Exception as error:
@@ -201,21 +272,20 @@ async def get_conversation(
 async def rename_conversation(
     conversation_id: str,
     request: RenameConversationRequest,
-    current_user=Depends(get_current_user),
+    x_conversation_token: str | None = Header(
+        default=None,
+        alias="X-Conversation-Token",
+    ),
 ):
+
     try:
 
-        try:
-            object_id = ObjectId(
-                conversation_id
+        conversation, object_id, conversations = (
+            get_public_conversation(
+                conversation_id,
+                x_conversation_token,
             )
-
-        except Exception:
-
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid conversation ID.",
-            )
+        )
 
         title = request.title.strip()
 
@@ -226,12 +296,9 @@ async def rename_conversation(
                 detail="Conversation title cannot be empty.",
             )
 
-        conversations = get_conversations_collection()
-
         result = conversations.update_one(
             {
                 "_id": object_id,
-                "user_id": current_user["_id"],
             },
             {
                 "$set": {
@@ -254,6 +321,7 @@ async def rename_conversation(
         }
 
     except HTTPException:
+
         raise
 
     except Exception as error:
@@ -276,28 +344,24 @@ async def rename_conversation(
 @router.delete("/{conversation_id}")
 async def delete_conversation(
     conversation_id: str,
-    current_user=Depends(get_current_user),
+    x_conversation_token: str | None = Header(
+        default=None,
+        alias="X-Conversation-Token",
+    ),
 ):
+
     try:
 
-        try:
-            object_id = ObjectId(
-                conversation_id
+        conversation, object_id, conversations = (
+            get_public_conversation(
+                conversation_id,
+                x_conversation_token,
             )
-
-        except Exception:
-
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid conversation ID.",
-            )
-
-        conversations = get_conversations_collection()
+        )
 
         result = conversations.delete_one(
             {
                 "_id": object_id,
-                "user_id": current_user["_id"],
             }
         )
 
@@ -315,6 +379,7 @@ async def delete_conversation(
         }
 
     except HTTPException:
+
         raise
 
     except Exception as error:

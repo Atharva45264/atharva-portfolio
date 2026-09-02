@@ -5,7 +5,15 @@ from datetime import datetime, timezone
 
 from app.services.retrieval import retrieve_relevant_chunks
 from app.services.llm import generate_answer
-from app.services.conversation import build_retrieval_query
+from app.services.conversation import (
+    build_retrieval_query,
+    generate_conversation_title,
+)
+from app.services.public_session import (
+    generate_conversation_token,
+    hash_conversation_token,
+    verify_conversation_token,
+)
 from app.database import get_conversations_collection
 
 
@@ -14,10 +22,6 @@ router = APIRouter(
     tags=["Chat"],
 )
 
-
-# =========================================
-# REQUEST MODEL
-# =========================================
 
 class ChatRequest(BaseModel):
 
@@ -29,16 +33,18 @@ class ChatRequest(BaseModel):
 
     conversation_id: str | None = None
 
+    conversation_token: str | None = Field(
+        default=None,
+        min_length=20,
+        max_length=200,
+    )
+
     limit: int = Field(
         default=5,
         ge=1,
         le=10,
     )
 
-
-# =========================================
-# CHAT ENDPOINT
-# =========================================
 
 @router.post("")
 async def chat(
@@ -47,9 +53,9 @@ async def chat(
 
     try:
 
-        # =====================================
+        # =========================================
         # VALIDATE MESSAGE
-        # =====================================
+        # =========================================
 
         message = request.message.strip()
 
@@ -60,20 +66,29 @@ async def chat(
                 detail="Message cannot be empty.",
             )
 
-        # =====================================
-        # DATABASE
-        # =====================================
 
-        conversations = get_conversations_collection()
+        # =========================================
+        # DATABASE
+        # =========================================
+
+        conversations = (
+            get_conversations_collection()
+        )
 
         conversation = None
+
         conversation_object_id = None
 
-        # =====================================
+
+        # =========================================
         # LOAD EXISTING CONVERSATION
-        # =====================================
+        # =========================================
 
         if request.conversation_id:
+
+            # -------------------------------------
+            # Conversation ID
+            # -------------------------------------
 
             try:
 
@@ -88,11 +103,29 @@ async def chat(
                     detail="Invalid conversation ID.",
                 )
 
+
+            # -------------------------------------
+            # Conversation token required
+            # -------------------------------------
+
+            if not request.conversation_token:
+
+                raise HTTPException(
+                    status_code=401,
+                    detail="Conversation token required.",
+                )
+
+
+            # -------------------------------------
+            # Find conversation
+            # -------------------------------------
+
             conversation = conversations.find_one(
                 {
                     "_id": conversation_object_id,
                 }
             )
+
 
             if not conversation:
 
@@ -101,31 +134,67 @@ async def chat(
                     detail="Conversation not found.",
                 )
 
-        # =====================================
-        # GET CONVERSATION HISTORY
-        # =====================================
+
+            # -------------------------------------
+            # Verify token
+            # -------------------------------------
+
+            stored_token_hash = conversation.get(
+                "conversation_token_hash"
+            )
+
+
+            if not stored_token_hash:
+
+                raise HTTPException(
+                    status_code=401,
+                    detail="Conversation token is not configured for this conversation.",
+                )
+
+
+            token_valid = verify_conversation_token(
+                request.conversation_token,
+                stored_token_hash,
+            )
+
+
+            if not token_valid:
+
+                raise HTTPException(
+                    status_code=403,
+                    detail="Invalid conversation token.",
+                )
+
+
+        # =========================================
+        # CONVERSATION HISTORY
+        # =========================================
 
         conversation_history = []
 
         if conversation:
 
-            conversation_history = conversation.get(
-                "messages",
-                []
+            conversation_history = (
+                conversation.get(
+                    "messages",
+                    [],
+                )
             )
 
-        # =====================================
-        # BUILD CONVERSATION-AWARE QUERY
-        # =====================================
+
+        # =========================================
+        # BUILD RETRIEVAL QUERY
+        # =========================================
 
         retrieval_query = build_retrieval_query(
             question=message,
             conversation_history=conversation_history,
         )
 
-        # =====================================
+
+        # =========================================
         # RETRIEVE KNOWLEDGE
-        # =====================================
+        # =========================================
 
         results = retrieve_relevant_chunks(
             query=message,
@@ -133,11 +202,13 @@ async def chat(
             limit=request.limit,
         )
 
-        # =====================================
+
+        # =========================================
         # BUILD CONTEXT
-        # =====================================
+        # =========================================
 
         context_parts = []
+
 
         for result in results:
 
@@ -161,6 +232,7 @@ async def chat(
                 "",
             )
 
+
             context_parts.append(
                 f"""
 TITLE: {title}
@@ -175,13 +247,15 @@ CONTENT:
 """.strip()
             )
 
+
         context = "\n\n---\n\n".join(
             context_parts
         )
 
-        # =====================================
+
+        # =========================================
         # GENERATE ANSWER
-        # =====================================
+        # =========================================
 
         if results:
 
@@ -198,13 +272,15 @@ CONTENT:
                 "in my portfolio data."
             )
 
-        # =====================================
+
+        # =========================================
         # BUILD SOURCES
-        # =====================================
+        # =========================================
 
         sources = []
 
         seen_sources = set()
+
 
         for result in results:
 
@@ -224,6 +300,7 @@ CONTENT:
                 "url"
             )
 
+
             source_key = (
                 title,
                 category,
@@ -231,13 +308,16 @@ CONTENT:
                 url,
             )
 
-            # Prevent duplicate sources
+
             if source_key in seen_sources:
+
                 continue
+
 
             seen_sources.add(
                 source_key
             )
+
 
             sources.append(
                 {
@@ -251,21 +331,61 @@ CONTENT:
                 }
             )
 
-        # =====================================
-        # CURRENT TIMESTAMP
-        # =====================================
+
+        # =========================================
+        # CURRENT TIME
+        # =========================================
 
         now = datetime.now(
             timezone.utc
         )
 
-        # =====================================
+
+        # =========================================
         # CREATE NEW CONVERSATION
-        # =====================================
+        # =========================================
 
         if conversation is None:
 
+            # -------------------------------------
+            # Generate secure token
+            # -------------------------------------
+
+            conversation_token = (
+                generate_conversation_token()
+            )
+
+
+            conversation_token_hash = (
+                hash_conversation_token(
+                    conversation_token
+                )
+            )
+
+
+            # -------------------------------------
+            # Generate title
+            # -------------------------------------
+
+            conversation_title = (
+                generate_conversation_title(
+                    message
+                )
+            )
+
+
+            # -------------------------------------
+            # Create document
+            # -------------------------------------
+
             new_conversation = {
+
+                "user_id": None,
+
+                "title": conversation_title,
+
+                "conversation_token_hash":
+                    conversation_token_hash,
 
                 "messages": [
 
@@ -284,20 +404,29 @@ CONTENT:
                 ],
 
                 "created_at": now,
+
                 "updated_at": now,
+
             }
+
+
+            # -------------------------------------
+            # Insert
+            # -------------------------------------
 
             result = conversations.insert_one(
                 new_conversation
             )
 
+
             conversation_object_id = (
                 result.inserted_id
             )
 
-        # =====================================
+
+        # =========================================
         # UPDATE EXISTING CONVERSATION
-        # =====================================
+        # =========================================
 
         else:
 
@@ -308,7 +437,6 @@ CONTENT:
                 },
 
                 {
-
                     "$push": {
 
                         "messages": {
@@ -334,42 +462,67 @@ CONTENT:
                     },
 
                     "$set": {
+
                         "updated_at": now,
+
                     },
 
                 },
 
             )
 
-        # =====================================
-        # RETURN RESPONSE
-        # =====================================
 
-        return {
+            # Existing conversation already
+            # has the token.
+            conversation_token = None
+
+
+        # =========================================
+        # RESPONSE
+        # =========================================
+
+        response = {
 
             "success": True,
 
             "answer": answer,
 
-            "conversation_id": str(
-                conversation_object_id
-            ),
+            "conversation_id":
+                str(
+                    conversation_object_id
+                ),
 
             "sources": sources,
 
         }
 
-    # =========================================
-    # EXPECTED HTTP ERRORS
-    # =========================================
+
+        # =========================================
+        # RETURN TOKEN ONLY FOR NEW CONVERSATION
+        # =========================================
+
+        if conversation_token:
+
+            response[
+                "conversation_token"
+            ] = conversation_token
+
+
+        return response
+
+
+    # =============================================
+    # HTTP ERRORS
+    # =============================================
 
     except HTTPException:
 
         raise
 
-    # =========================================
+
+    # =============================================
     # UNEXPECTED ERRORS
-    # =========================================
+    # =============================================
 
     except Exception as error:
 
