@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 from bson import ObjectId
 from datetime import datetime, timezone
+from app.services.rate_limiter import limiter
 
 from app.services.retrieval import retrieve_relevant_chunks
 from app.services.llm import generate_answer
@@ -47,8 +48,10 @@ class ChatRequest(BaseModel):
 
 
 @router.post("")
+@limiter.limit("10/minute")
 async def chat(
-    request: ChatRequest,
+    request: Request,
+    chat_request: ChatRequest,
 ):
 
     try:
@@ -57,7 +60,7 @@ async def chat(
         # VALIDATE MESSAGE
         # =========================================
 
-        message = request.message.strip()
+        message = chat_request.message.strip()
 
         if not message:
 
@@ -84,7 +87,7 @@ async def chat(
         # LOAD EXISTING CONVERSATION
         # =========================================
 
-        if request.conversation_id:
+        if chat_request.conversation_id:
 
             # -------------------------------------
             # Conversation ID
@@ -93,7 +96,7 @@ async def chat(
             try:
 
                 conversation_object_id = ObjectId(
-                    request.conversation_id
+                    chat_request.conversation_id
                 )
 
             except Exception:
@@ -108,7 +111,7 @@ async def chat(
             # Conversation token required
             # -------------------------------------
 
-            if not request.conversation_token:
+            if not chat_request.conversation_token:
 
                 raise HTTPException(
                     status_code=401,
@@ -153,7 +156,7 @@ async def chat(
 
 
             token_valid = verify_conversation_token(
-                request.conversation_token,
+                chat_request.conversation_token,
                 stored_token_hash,
             )
 
@@ -199,7 +202,7 @@ async def chat(
         results = retrieve_relevant_chunks(
             query=message,
             retrieval_query=retrieval_query,
-            limit=request.limit,
+            limit=chat_request.limit,
         )
 
 

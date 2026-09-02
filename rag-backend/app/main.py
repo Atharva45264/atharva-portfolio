@@ -1,14 +1,28 @@
 from fastapi import FastAPI
+
 from dotenv import load_dotenv
+
 from app.database import get_database
+
 from app.routes.resume import router as resume_router
+
 from app.routes.chat import router as chat_router
+
 from app.routes.auth import router as auth_router
+
 from app.routes.conversations import router as conversations_router
+
 from pydantic import BaseModel
+
 from app.services.llm import generate_answer
 
+from app.services.rate_limiter import limiter
+
+from slowapi.middleware import SlowAPIMiddleware
+
+
 load_dotenv()
+
 
 app = FastAPI(
     title="Atharva Portfolio RAG API",
@@ -16,55 +30,109 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
+# =========================================
+# RATE LIMITER
+# =========================================
+
+app.state.limiter = limiter
+
+app.add_middleware(
+    SlowAPIMiddleware
+)
+
+
+# =========================================
+# LLM TEST MODEL
+# =========================================
+
 class LLMTestRequest(BaseModel):
+
     question: str
 
+
+# =========================================
+# ROUTERS
+# =========================================
+
 app.include_router(resume_router)
+
 app.include_router(chat_router)
+
 app.include_router(auth_router)
+
 app.include_router(conversations_router)
 
 
+# =========================================
+# ROOT
+# =========================================
+
 @app.get("/")
 def root():
+
     return {
         "success": True,
         "message": "Atharva Portfolio RAG API is running",
     }
 
 
+# =========================================
+# HEALTH
+# =========================================
+
 @app.get("/health")
 def health():
+
     return {
         "status": "healthy",
         "service": "rag-backend",
     }
-    
+
+
+# =========================================
+# TEST DATABASE
+# =========================================
+
 @app.post("/test-db")
 async def test_database():
+
     try:
+
         db = get_database()
 
-        result = db["knowledge"].insert_one({
-    "type": "test",
-    "message": "MongoDB connection is working",
-})
+        result = db["knowledge"].insert_one(
+            {
+                "type": "test",
+                "message": "MongoDB connection is working",
+            }
+        )
 
         return {
             "success": True,
             "message": "MongoDB connection successful",
-            "document_id": str(result.inserted_id),
+            "document_id": str(
+                result.inserted_id
+            ),
         }
 
     except Exception as e:
+
         return {
             "success": False,
             "message": "MongoDB connection failed",
             "error": str(e),
         }
-        
+
+
+# =========================================
+# TEST LLM
+# =========================================
+
 @app.post("/test-llm")
-async def test_llm(request: LLMTestRequest):
+async def test_llm(
+    request: LLMTestRequest,
+):
 
     context = """
     Atharva Phanse is an Information Technology graduate.
