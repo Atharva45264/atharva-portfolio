@@ -39,29 +39,20 @@ const INITIAL_MESSAGE: Message = {
 
 export const ChatbotWidget: React.FC = () => {
   const [open, setOpen] = useState(false);
-
   const [messages, setMessages] = useState<Message[]>([
     INITIAL_MESSAGE,
   ]);
-
   const [input, setInput] = useState('');
-
   const [isTyping, setIsTyping] = useState(false);
-
   const [conversationId, setConversationId] = useState<string | null>(
     null
   );
-
   const [conversationToken, setConversationToken] = useState<string | null>(
     null
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  /*
-   * Restore an existing public conversation
-   * if the visitor refreshes the page.
-   */
   useEffect(() => {
     const storedConversationId = sessionStorage.getItem(
       'atharva_conversation_id'
@@ -77,9 +68,6 @@ export const ChatbotWidget: React.FC = () => {
     }
   }, []);
 
-  /*
-   * Keep the chat scrolled to the latest message.
-   */
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop =
@@ -87,10 +75,6 @@ export const ChatbotWidget: React.FC = () => {
     }
   }, [messages, isTyping]);
 
-  /*
-   * Save the public conversation credentials
-   * for the current browser session.
-   */
   useEffect(() => {
     if (conversationId) {
       sessionStorage.setItem(
@@ -160,10 +144,6 @@ export const ChatbotWidget: React.FC = () => {
 
       const data: ChatResponse = await response.json();
 
-      /*
-       * Store the conversation credentials returned
-       * by the backend.
-       */
       if (data.conversation_id) {
         setConversationId(data.conversation_id);
       }
@@ -210,74 +190,443 @@ export const ChatbotWidget: React.FC = () => {
 
   return (
     <>
-      {/* Floating Toggle Button */}
+      {/* =========================================================
+          AI ASSISTANT LAUNCHER
+          Large opaque surface intentionally covers the AP
+          circle from the background video.
+      ========================================================== */}
+
       <motion.button
         onClick={() => setOpen((o) => !o)}
-        whileHover={{ scale: 1.06 }}
-        whileTap={{ scale: 0.94 }}
-        className="fixed bottom-6 right-6 z-[60] w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#2F6C4F] hover:bg-[#1F4A34] text-white shadow-[0_10px_35px_rgba(47,108,79,0.45)] flex items-center justify-center transition-colors duration-300"
-        aria-label="Open chat assistant"
+        whileHover={{
+          scale: 1.025,
+        }}
+        whileTap={{
+          scale: 0.985,
+        }}
+        className="
+          fixed
+          bottom-[25px]
+          right-[40px]
+          sm:bottom-[25px]
+          sm:right-[40px]
+          z-[70]
+
+          w-[180px]
+          h-[180px]
+
+          max-sm:w-[118px]
+          max-sm:h-[118px]
+          max-sm:bottom-[24px]
+          max-sm:right-[24px]
+
+          rounded-full
+
+          overflow-hidden
+
+          bg-[#1C231D]
+
+          border
+          border-[#8FD4B0]/30
+
+          shadow-[0_20px_70px_rgba(28,35,29,0.55)]
+
+          flex
+          items-center
+          justify-center
+
+          cursor-pointer
+
+          outline-none
+        "
+        aria-label={
+          open
+            ? 'Close chat assistant'
+            : 'Open AI portfolio assistant'
+        }
       >
-        <AnimatePresence
-          mode="wait"
-          initial={false}
+        {/* Ambient glow */}
+        <motion.div
+          className="
+            absolute
+            inset-[-35%]
+            rounded-full
+            bg-[#2F6C4F]/35
+            blur-3xl
+          "
+          animate={{
+            scale: [0.85, 1.12, 0.85],
+            opacity: [0.35, 0.65, 0.35],
+          }}
+          transition={{
+            duration: 4,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          }}
+        />
+
+        {/* Outer orbital ring */}
+        <motion.div
+          className="
+            absolute
+            w-[132px]
+            h-[132px]
+
+            max-sm:w-[88px]
+            max-sm:h-[88px]
+
+            rounded-full
+            border
+            border-[#8FD4B0]/25
+          "
+          animate={{
+            rotate: 360,
+          }}
+          transition={{
+            duration: 14,
+            repeat: Infinity,
+            ease: 'linear',
+          }}
         >
-          {open ? (
-            <motion.span
-              key="close"
+          <span
+            className="
+              absolute
+              -top-[3px]
+              left-1/2
+              -translate-x-1/2
+
+              w-[6px]
+              h-[6px]
+
+              max-sm:w-[4px]
+              max-sm:h-[4px]
+
+              rounded-full
+              bg-[#8FD4B0]
+              shadow-[0_0_12px_rgba(143,212,176,0.9)]
+            "
+          />
+        </motion.div>
+
+        {/* Second orbital ring */}
+        <motion.div
+          className="
+            absolute
+
+            w-[108px]
+            h-[72px]
+
+            max-sm:w-[72px]
+            max-sm:h-[48px]
+
+            rounded-full
+
+            border
+            border-[#4F7A63]/45
+          "
+          animate={{
+            rotate: -360,
+          }}
+          transition={{
+            duration: 9,
+            repeat: Infinity,
+            ease: 'linear',
+          }}
+        />
+
+        {/* AI core */}
+        <motion.div
+          className="
+            relative
+            z-10
+
+            w-[68px]
+            h-[68px]
+
+            max-sm:w-[48px]
+            max-sm:h-[48px]
+
+            rounded-full
+
+            bg-gradient-to-br
+            from-[#8FD4B0]
+            via-[#4F7A63]
+            to-[#2F6C4F]
+
+            shadow-[0_0_35px_rgba(143,212,176,0.35)]
+
+            flex
+            items-center
+            justify-center
+          "
+          animate={{
+            scale: [1, 1.08, 1],
+          }}
+          transition={{
+            duration: 2.8,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          }}
+        >
+          {/* Core inner light */}
+          <motion.div
+            className="
+              w-[24px]
+              h-[24px]
+
+              max-sm:w-[17px]
+              max-sm:h-[17px]
+
+              rounded-full
+
+              bg-[#FDFCF8]
+
+              shadow-[0_0_20px_rgba(253,252,248,0.8)]
+            "
+            animate={{
+              scale: [0.8, 1.15, 0.8],
+              opacity: [0.7, 1, 0.7],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+          />
+
+          {/* Small neural points */}
+          <motion.span
+            className="
+              absolute
+              w-[5px]
+              h-[5px]
+              rounded-full
+              bg-white
+              top-[10px]
+              right-[12px]
+            "
+            animate={{
+              opacity: [0.2, 1, 0.2],
+              scale: [0.7, 1.3, 0.7],
+            }}
+            transition={{
+              duration: 1.8,
+              repeat: Infinity,
+            }}
+          />
+
+          <motion.span
+            className="
+              absolute
+              w-[4px]
+              h-[4px]
+              rounded-full
+              bg-white
+              bottom-[11px]
+              left-[13px]
+            "
+            animate={{
+              opacity: [1, 0.2, 1],
+              scale: [1.2, 0.7, 1.2],
+            }}
+            transition={{
+              duration: 2.2,
+              repeat: Infinity,
+            }}
+          />
+        </motion.div>
+
+        {/* AI label */}
+        <div
+          className="
+            absolute
+            bottom-[25px]
+
+            max-sm:bottom-[16px]
+
+            left-0
+            right-0
+
+            flex
+            justify-center
+          "
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            {open ? (
+              <motion.span
+                key="close-label"
+                initial={{
+                  opacity: 0,
+                  y: 5,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                exit={{
+                  opacity: 0,
+                  y: -5,
+                }}
+                className="
+                  text-[9px]
+                  max-sm:text-[7px]
+
+                  tracking-[0.28em]
+
+                  text-[#8FD4B0]
+                  font-medium
+                "
+              >
+                CLOSE
+              </motion.span>
+            ) : (
+              <motion.span
+                key="ai-label"
+                initial={{
+                  opacity: 0,
+                  y: 5,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                exit={{
+                  opacity: 0,
+                  y: -5,
+                }}
+                className="
+                  text-[9px]
+                  max-sm:text-[7px]
+
+                  tracking-[0.28em]
+
+                  text-[#8FD4B0]
+                  font-medium
+                "
+              >
+                AI ASSISTANT
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Open / close control */}
+        <AnimatePresence>
+          {open && (
+            <motion.div
               initial={{
-                rotate: -90,
                 opacity: 0,
+                scale: 0.5,
+                rotate: -90,
               }}
               animate={{
-                rotate: 0,
                 opacity: 1,
+                scale: 1,
+                rotate: 0,
               }}
               exit={{
-                rotate: 90,
                 opacity: 0,
+                scale: 0.5,
+                rotate: 90,
               }}
               transition={{
-                duration: 0.2,
+                duration: 0.3,
               }}
-              className="text-2xl leading-none"
+              className="
+                absolute
+                top-[20px]
+                right-[20px]
+
+                max-sm:top-[12px]
+                max-sm:right-[12px]
+
+                w-[26px]
+                h-[26px]
+
+                max-sm:w-[20px]
+                max-sm:h-[20px]
+
+                rounded-full
+
+                bg-[#FDFCF8]/10
+                backdrop-blur-md
+
+                border
+                border-white/10
+
+                flex
+                items-center
+                justify-center
+
+                text-[#FDFCF8]
+                text-lg
+                max-sm:text-sm
+
+                z-20
+              "
             >
               ×
-            </motion.span>
-          ) : (
-            <motion.span
-              key="chat"
-              initial={{
-                scale: 0.7,
-                opacity: 0,
-              }}
-              animate={{
-                scale: 1,
-                opacity: 1,
-              }}
-              exit={{
-                scale: 0.7,
-                opacity: 0,
-              }}
-              transition={{
-                duration: 0.2,
-              }}
-              className="text-2xl leading-none"
-            >
-              💬
-            </motion.span>
+            </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Decorative particles */}
+        <motion.span
+          className="
+            absolute
+            w-[3px]
+            h-[3px]
+            rounded-full
+            bg-[#8FD4B0]
+            left-[35px]
+            top-[52px]
+            max-sm:left-[23px]
+            max-sm:top-[34px]
+          "
+          animate={{
+            y: [-4, 5, -4],
+            opacity: [0.2, 1, 0.2],
+          }}
+          transition={{
+            duration: 3,
+            repeat: Infinity,
+          }}
+        />
+
+        <motion.span
+          className="
+            absolute
+            w-[3px]
+            h-[3px]
+            rounded-full
+            bg-[#8FD4B0]
+            right-[35px]
+            bottom-[55px]
+            max-sm:right-[23px]
+            max-sm:bottom-[36px]
+          "
+          animate={{
+            y: [5, -5, 5],
+            opacity: [1, 0.2, 1],
+          }}
+          transition={{
+            duration: 2.5,
+            repeat: Infinity,
+          }}
+        />
       </motion.button>
 
-      {/* Chat Panel */}
+      {/* =========================================================
+          CHAT PANEL
+      ========================================================== */}
+
       <AnimatePresence>
         {open && (
           <motion.div
             initial={{
               opacity: 0,
-              y: 24,
-              scale: 0.96,
+              y: 30,
+              scale: 0.94,
             }}
             animate={{
               opacity: 1,
@@ -286,28 +635,97 @@ export const ChatbotWidget: React.FC = () => {
             }}
             exit={{
               opacity: 0,
-              y: 24,
-              scale: 0.96,
+              y: 30,
+              scale: 0.94,
             }}
             transition={{
-              duration: 0.25,
+              duration: 0.3,
               ease: [0.16, 1, 0.3, 1],
             }}
-            className="fixed bottom-24 right-6 z-[60] w-[90vw] max-w-sm h-[70vh] max-h-[520px] bg-[#FDFCF8] border border-[#4F7A63]/30 rounded-2xl shadow-[0_25px_70px_rgba(28,35,29,0.35)] flex flex-col overflow-hidden"
+            className="
+              fixed
+
+              bottom-[200px]
+              right-6
+
+              max-sm:bottom-[125px]
+              max-sm:right-4
+
+              z-[65]
+
+              w-[90vw]
+              max-w-sm
+
+              h-[70vh]
+              max-h-[520px]
+
+              bg-[#FDFCF8]/95
+              backdrop-blur-xl
+
+              border
+              border-[#4F7A63]/25
+
+              rounded-2xl
+
+              shadow-[0_30px_90px_rgba(28,35,29,0.38)]
+
+              flex
+              flex-col
+
+              overflow-hidden
+            "
             style={{
               fontFamily: "'Montserrat', sans-serif",
             }}
           >
             {/* Header */}
-            <div className="px-5 py-4 bg-[#1C231D] flex items-center gap-3 shrink-0">
+            <div
+              className="
+                px-5
+                py-4
+
+                bg-[#1C231D]
+
+                flex
+                items-center
+                gap-3
+
+                shrink-0
+              "
+            >
+              {/* Mini AI indicator instead of AP */}
               <div
-                className="w-9 h-9 rounded-full bg-[#2F6C4F] flex items-center justify-center text-white text-sm font-bold"
-                style={{
-                  fontFamily:
-                    "'Bebas Neue', sans-serif",
-                }}
+                className="
+                  relative
+                  w-9
+                  h-9
+                  rounded-full
+                  bg-[#2F6C4F]
+
+                  flex
+                  items-center
+                  justify-center
+
+                  shadow-[0_0_18px_rgba(47,108,79,0.45)]
+                "
               >
-                AP
+                <motion.span
+                  className="
+                    w-2.5
+                    h-2.5
+                    rounded-full
+                    bg-[#8FD4B0]
+                    shadow-[0_0_12px_rgba(143,212,176,0.9)]
+                  "
+                  animate={{
+                    scale: [0.8, 1.25, 0.8],
+                    opacity: [0.6, 1, 0.6],
+                  }}
+                  transition={{
+                    duration: 1.8,
+                    repeat: Infinity,
+                  }}
+                />
               </div>
 
               <div className="flex-1 min-w-0">
@@ -315,16 +733,26 @@ export const ChatbotWidget: React.FC = () => {
                   Atharva's Assistant
                 </p>
 
-                <p className="text-[11px] text-[#8FD4B0] leading-tight">
-                  Ask about skills, projects, resume
-                </p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#8FD4B0]" />
+
+                  <p className="text-[11px] text-[#8FD4B0] leading-tight">
+                    AI portfolio assistant
+                  </p>
+                </div>
               </div>
             </div>
 
             {/* Messages */}
             <div
               ref={scrollRef}
-              className="flex-1 overflow-y-auto px-4 py-4 space-y-3"
+              className="
+                flex-1
+                overflow-y-auto
+                px-4
+                py-4
+                space-y-3
+              "
             >
               {messages.map((m) => (
                 <div
@@ -349,37 +777,29 @@ export const ChatbotWidget: React.FC = () => {
                             {children}
                           </p>
                         ),
-
                         strong: ({ children }) => (
                           <strong className="font-semibold">
                             {children}
                           </strong>
                         ),
-
                         ul: ({ children }) => (
                           <ul className="list-disc pl-5 space-y-1 mb-2">
                             {children}
                           </ul>
                         ),
-
                         ol: ({ children }) => (
                           <ol className="list-decimal pl-5 space-y-1 mb-2">
                             {children}
                           </ol>
                         ),
-
                         li: ({ children }) => (
-                          <li>
-                            {children}
-                          </li>
+                          <li>{children}</li>
                         ),
-
                         code: ({ children }) => (
                           <code className="px-1.5 py-0.5 rounded bg-black/10 text-[12px] font-mono">
                             {children}
                           </code>
                         ),
-
                         a: ({ href, children }) => (
                           <a
                             href={href}
@@ -408,16 +828,29 @@ export const ChatbotWidget: React.FC = () => {
                 </div>
               )}
 
-              {/* Suggestion chips */}
               {messages.length === 1 && !isTyping && (
                 <div className="flex flex-wrap gap-2 pt-1">
                   {SUGGESTIONS.map((s) => (
                     <button
                       key={s}
-                      onClick={() =>
-                        sendMessage(s)
-                      }
-                      className="text-[11.5px] px-3 py-1.5 rounded-full border border-[#4F7A63]/40 text-[#34372F] hover:bg-[#2F6C4F] hover:text-white hover:border-[#2F6C4F] transition-colors"
+                      onClick={() => sendMessage(s)}
+                      className="
+                        text-[11.5px]
+                        px-3
+                        py-1.5
+                        rounded-full
+
+                        border
+                        border-[#4F7A63]/40
+
+                        text-[#34372F]
+
+                        hover:bg-[#2F6C4F]
+                        hover:text-white
+                        hover:border-[#2F6C4F]
+
+                        transition-colors
+                      "
                     >
                       {s}
                     </button>
@@ -429,7 +862,17 @@ export const ChatbotWidget: React.FC = () => {
             {/* Input */}
             <form
               onSubmit={handleSubmit}
-              className="p-3 border-t border-[#4F7A63]/20 flex items-center gap-2 shrink-0"
+              className="
+                p-3
+                border-t
+                border-[#4F7A63]/20
+
+                flex
+                items-center
+                gap-2
+
+                shrink-0
+              "
             >
               <input
                 type="text"
@@ -440,7 +883,32 @@ export const ChatbotWidget: React.FC = () => {
                 placeholder="Ask about my resume..."
                 maxLength={2000}
                 disabled={isTyping}
-                className="flex-1 bg-[#EAE6DB] border border-[#4F7A63]/25 focus:border-[#2F6C4F] text-[13.5px] text-[#1C231D] placeholder-[#4F7A63]/70 px-3.5 py-2.5 rounded-full outline-none transition-colors disabled:opacity-60"
+                className="
+                  flex-1
+
+                  bg-[#EAE6DB]
+
+                  border
+                  border-[#4F7A63]/25
+
+                  focus:border-[#2F6C4F]
+
+                  text-[13.5px]
+                  text-[#1C231D]
+
+                  placeholder-[#4F7A63]/70
+
+                  px-3.5
+                  py-2.5
+
+                  rounded-full
+
+                  outline-none
+
+                  transition-colors
+
+                  disabled:opacity-60
+                "
               />
 
               <button
@@ -449,7 +917,28 @@ export const ChatbotWidget: React.FC = () => {
                   isTyping ||
                   !input.trim()
                 }
-                className="w-10 h-10 rounded-full bg-[#2F6C4F] hover:bg-[#1F4A34] text-white flex items-center justify-center shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="
+                  w-10
+                  h-10
+
+                  rounded-full
+
+                  bg-[#2F6C4F]
+                  hover:bg-[#1F4A34]
+
+                  text-white
+
+                  flex
+                  items-center
+                  justify-center
+
+                  shrink-0
+
+                  transition-colors
+
+                  disabled:opacity-50
+                  disabled:cursor-not-allowed
+                "
                 aria-label="Send message"
               >
                 ↑
