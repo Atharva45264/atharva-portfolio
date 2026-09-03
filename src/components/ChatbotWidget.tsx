@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   id: number;
@@ -24,7 +25,7 @@ const API_URL =
   import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 const SUGGESTIONS = [
-  'What are your skills?',
+  'What are Atharva\'s skills?',
   'Tell me about your projects',
   'What is your experience?',
   'How can I contact you?',
@@ -341,7 +342,58 @@ export const ChatbotWidget: React.FC = () => {
                         : 'bg-[#EAE6DB] text-[#1C231D] rounded-bl-sm'
                     }`}
                   >
-                    {m.text}
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => (
+                          <p className="mb-2 last:mb-0">
+                            {children}
+                          </p>
+                        ),
+
+                        strong: ({ children }) => (
+                          <strong className="font-semibold">
+                            {children}
+                          </strong>
+                        ),
+
+                        ul: ({ children }) => (
+                          <ul className="list-disc pl-5 space-y-1 mb-2">
+                            {children}
+                          </ul>
+                        ),
+
+                        ol: ({ children }) => (
+                          <ol className="list-decimal pl-5 space-y-1 mb-2">
+                            {children}
+                          </ol>
+                        ),
+
+                        li: ({ children }) => (
+                          <li>
+                            {children}
+                          </li>
+                        ),
+
+                        code: ({ children }) => (
+                          <code className="px-1.5 py-0.5 rounded bg-black/10 text-[12px] font-mono">
+                            {children}
+                          </code>
+                        ),
+
+                        a: ({ href, children }) => (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline font-medium hover:opacity-70"
+                          >
+                            {children}
+                          </a>
+                        ),
+                      }}
+                    >
+                      {m.text}
+                    </ReactMarkdown>
                   </div>
                 </div>
               ))}
